@@ -20,7 +20,7 @@ __GPL__ = """
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import anydbm
+import dbm
 import logging
 import os
 import socket
@@ -28,7 +28,7 @@ from optparse import OptionParser
 from sys import exit
 from xml.dom.minidom import Document
 
-from libs.svhelper import __author__, __version__
+from .libs.svhelper import __author__, __version__
 
 __prog__ = 'svreport'
 
@@ -71,8 +71,8 @@ def main():
         parser.error("Please specify a command.\r\n")
         exit(1)
     command = args[0]
-    from libs.svhelper import listsessions, deletesessions, createReverseLookup, dbexists
-    from libs.svhelper import getsessionpath, getasciitable, outputtoxml, outputtopdf, calcloglevel
+    from .libs.svhelper import listsessions, deletesessions, createReverseLookup, dbexists
+    from .libs.svhelper import getsessionpath, getasciitable, outputtoxml, outputtopdf, calcloglevel
     validcommands = ['list', 'export', 'delete', 'stats', 'search']
     if command not in validcommands:
         parser.error('%s is not a supported command' % command)
@@ -120,7 +120,7 @@ def main():
         if not dbexists(dbloc):
             logging.error('The database could not be found: %s' % dbloc)
             exit(1)
-        db = anydbm.open(dbloc, 'r')
+        db = dbm.open(dbloc, 'r')
 
         if options.resolve and sessiontype == 'svmap':
             resolve = True
@@ -128,11 +128,11 @@ def main():
             resdbloc = os.path.join(sessionpath, 'resolved')
             if not dbexists(resdbloc):
                 logging.info('Performing DNS reverse lookup')
-                resdb = anydbm.open(resdbloc, 'c')
+                resdb = dbm.open(resdbloc, 'c')
                 createReverseLookup(db, resdb)
             else:
                 logging.info('Not Performing DNS lookup')
-                resdb = anydbm.open(resdbloc, 'r')
+                resdb = dbm.open(resdbloc, 'r')
 
         if options.outputfile is not None:
             if options.outputfile.find('.') < 0:
@@ -143,7 +143,7 @@ def main():
         if options.format in [None, 'stdout', 'txt']:
             o = getasciitable(labels, db, resdb)
             if options.outputfile is None:
-                print o
+                print(o)
             else:
                 open(options.outputfile, 'w').write(o)
         elif options.format == 'xml':
@@ -158,10 +158,10 @@ def main():
         elif options.format == 'csv':
             import csv
             writer = csv.writer(open(options.outputfile, "w"))
-            for k in db.keys():
+            for k in list(db.keys()):
                 row = [k, db[k]]
                 if resdb is not None:
-                    if resdb.has_key(k):
+                    if k in resdb:
                         row.append(resdb[k])
                     else:
                         row.append('N/A')
@@ -189,42 +189,42 @@ def main():
         if not dbexists(dbloc):
             logging.error('The database could not be found: %s' % dbloc)
             exit(1)
-        db = anydbm.open(dbloc, 'r')
+        db = dbm.open(dbloc, 'r')
         useragents = dict()
         useragentconames = dict()
-        for k in db.keys():
+        for k in list(db.keys()):
             v = db[k]
-            if not useragents.has_key(v):
+            if v not in useragents:
                 useragents[v] = 0
             useragents[v] += 1
             useragentconame = re.split('[ /]', v)[0]
-            if not useragentconames.has_key(useragentconame):
+            if useragentconame not in useragentconames:
                 useragentconames[useragentconame] = 0
             useragentconames[useragentconame] += 1
 
-        _useragents = sorted(useragents.iteritems(),
+        _useragents = sorted(iter(useragents.items()),
                              key=itemgetter(1), reverse=True)
-        suseragents = map(lambda x: '\t- %s (%s)' % (x[0], x[1]), _useragents)
+        suseragents = ['\t- %s (%s)' % (x[0], x[1]) for x in _useragents]
         _useragentsnames = sorted(
-            useragentconames.iteritems(), key=itemgetter(1), reverse=True)
-        suseragentsnames = map(lambda x: '\t- %s (%s)' %
-                               (x[0], x[1]), _useragentsnames)
-        print "Total number of SIP devices found: %s" % len(db.keys())
-        print "Total number of useragents: %s\r\n" % len(suseragents)
-        print "Total number of useragent names: %s\r\n" % len(suseragentsnames)
+            iter(useragentconames.items()), key=itemgetter(1), reverse=True)
+        suseragentsnames = ['\t- %s (%s)' %
+                               (x[0], x[1]) for x in _useragentsnames]
+        print("Total number of SIP devices found: %s" % len(list(db.keys())))
+        print("Total number of useragents: %s\r\n" % len(suseragents))
+        print("Total number of useragent names: %s\r\n" % len(suseragentsnames))
 
-        print "Most popular top 30 useragents:\r\n"
-        print '\r\n'.join(suseragents[:30])
-        print '\r\n\r\n'
-        print "Most unpopular top 30 useragents:\r\n\t"
-        print '\r\n'.join(suseragents[-30:])
-        print "\r\n\r\n"
-        print "Most popular top 30 useragent names:\r\n"
-        print '\r\n'.join(suseragentsnames[:30])
-        print '\r\n\r\n'
-        print "Most unpopular top 30 useragent names:\r\n\t"
-        print '\r\n'.join(suseragentsnames[-30:])
-        print "\r\n\r\n"
+        print("Most popular top 30 useragents:\r\n")
+        print('\r\n'.join(suseragents[:30]))
+        print('\r\n\r\n')
+        print("Most unpopular top 30 useragents:\r\n\t")
+        print('\r\n'.join(suseragents[-30:]))
+        print("\r\n\r\n")
+        print("Most popular top 30 useragent names:\r\n")
+        print('\r\n'.join(suseragentsnames[:30]))
+        print('\r\n\r\n')
+        print("Most unpopular top 30 useragent names:\r\n\t")
+        print('\r\n'.join(suseragentsnames[-30:]))
+        print("\r\n\r\n")
     elif command == 'search':
         if options.session is None:
             parser.error("Please specify a valid session")
@@ -245,14 +245,14 @@ def main():
         if not dbexists(dbloc):
             logging.error('The database could not be found: %s' % dbloc)
             exit(1)
-        db = anydbm.open(dbloc, 'r')
+        db = dbm.open(dbloc, 'r')
         useragents = dict()
         useragentconames = dict()
         labels = ['Host', 'User Agent']
-        for k in db.keys():
+        for k in list(db.keys()):
             v = db[k]
             if searchstring.lower() in v.lower():
-                print k + '\t' + v
+                print(k + '\t' + v)
 
 if __name__ == "__main__":
     main()

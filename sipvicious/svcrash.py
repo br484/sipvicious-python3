@@ -32,7 +32,7 @@ import sys
 import time
 import warnings
 
-from libs.svhelper import __author__, __version__
+from .libs.svhelper import __author__, __version__
 
 __prog__ = 'svcrash'
 warnings.filterwarnings("ignore")
@@ -124,7 +124,7 @@ class asteriskreadlognsend:
             while 1:
                 ipaddr = self.findfailures()
                 if ipaddr:
-                    for i in xrange(5060, 5080):
+                    for i in range(5060, 5080):
                         if scapyversion > 0:
                             sendattack2(ipaddr, i)
                         else:
@@ -161,7 +161,7 @@ class sniffnsend:
                         self.mytimer[src] = time.time()
                         sendattack2(ipaddr, port)
         if len(self.mytimer) > 0:
-            for src in self.mytimer.keys():
+            for src in list(self.mytimer.keys()):
                 if time.time() - self.mytimer[src] > 10:
                     # print "del %s:%s:%s" %
                     # (str(src),time.time(),self.mytimer[src])
@@ -172,7 +172,7 @@ class sniffnsend:
             sniff(prn=self.checknsend, filter="udp port %s" %
                   self.port, store=0)
         except KeyboardInterrupt:
-            print "goodbye"
+            print("goodbye")
 
 crashmsg = 'SIP/2.0 200 OK\r\nVia: SIP/2.0/UDP 8.7.6.5:5061;bran'
 crashmsg += 'ch=z9hG4bK-573841574;rport\r\n\r\nContent-length: 0\r\nFrom: '
@@ -205,7 +205,7 @@ def main():
         ast = asteriskreadlognsend(options.astlog)
         ast.start()
     elif options.bruteforceport:
-        for port in xrange(5060, 5090):
+        for port in range(5060, 5090):
             sendattack(options.ipaddr, port)
     else:
         sendattack(options.ipaddr, options.port)

@@ -115,13 +115,13 @@ def getRange(rangestr):
         _tmp3 = _tmp2.split('-', 1)
         if len(_tmp3) > 1:
             if not (_tmp3[0].isdigit() or _tmp3[1].isdigit()):
-                raise ValueError, "the ranges need to be digits"
-            startport, endport = map(int, [_tmp3[0], _tmp3[1]])
+                raise ValueError("the ranges need to be digits")
+            startport, endport = list(map(int, [_tmp3[0], _tmp3[1]]))
             endport += 1
-            numericrange.append(xrange(startport, endport))
+            numericrange.append(range(startport, endport))
         else:
             if not _tmp3[0].isdigit():
-                raise ValueError, "the ranges need to be digits"
+                raise ValueError("the ranges need to be digits")
             singleport = int(_tmp3[0])
             numericrange.append(anotherxrange(singleport, singleport + 1))
     return numericrange
@@ -132,29 +132,29 @@ def numericbrute(rangelist, zeropadding=0, template=None, defaults=False, static
     for statictry in staticbrute:
         yield(statictry)
     if defaults:
-        for i in xrange(1000, 9999, 100):
+        for i in range(1000, 9999, 100):
             yield('%04i' % i)
 
-        for i in xrange(1001, 9999, 100):
+        for i in range(1001, 9999, 100):
             yield('%04i' % i)
 
-        for i in xrange(0, 9):
-            for l in xrange(1, 8):
+        for i in range(0, 9):
+            for l in range(1, 8):
                 yield(('%s' % i) * l)
 
-        for i in xrange(100, 999):
+        for i in range(100, 999):
             yield('%s' % i)
 
-        for i in xrange(10000, 99999, 100):
+        for i in range(10000, 99999, 100):
             yield('%04i' % i)
 
-        for i in xrange(10001, 99999, 100):
+        for i in range(10001, 99999, 100):
             yield('%04i' % i)
 
-        for i in [1234, 2345, 3456, 4567, 5678, 6789, 7890, 0123]:
+        for i in [1234, 2345, 3456, 4567, 5678, 6789, 7890, 0o123]:
             yield('%s' % i)
 
-        for i in [12345, 23456, 34567, 45678, 56789, 67890, 01234]:
+        for i in [12345, 23456, 34567, 45678, 56789, 67890, 0o1234]:
             yield('%s' % i)
 
     if zeropadding > 0:
@@ -256,14 +256,14 @@ def parseSDP(buff):
         _tmp = line.split('=', 1)
         if len(_tmp) == 2:
             k, v = _tmp
-            if not r.has_key(k):
+            if k not in r:
                 r[k] = list()
             r[k].append(v)
     return r
 
 
 def getAudioPort(sdp):
-    if sdp.has_key('m'):
+    if 'm' in sdp:
         for media in sdp['m']:
             if media.startswith('audio'):
                 mediasplit = media.split()
@@ -273,7 +273,7 @@ def getAudioPort(sdp):
 
 
 def getAudioIP(sdp):
-    if sdp.has_key('c'):
+    if 'c' in sdp:
         for connect in sdp['c']:
             if connect.startswith('IN IP4'):
                 connectsplit = connect.split()
@@ -284,7 +284,7 @@ def getAudioIP(sdp):
 
 def getSDP(buff):
     sip = parseHeader(buff)
-    if sip.has_key('body'):
+    if 'body' in sip:
         body = sip['body']
         sdp = parseSDP(body)
         return sdp
@@ -322,7 +322,7 @@ def parseHeader(buff, type='response'):
             if len(_t) == 3:
                 sipversion, _code, description = _t
             else:
-                log.warn('Could not parse the first header line: %s' % `_t`)
+                log.warn('Could not parse the first header line: %s' % repr(_t))
                 return r
             try:
                 r['code'] = int(_code)
@@ -333,7 +333,7 @@ def parseHeader(buff, type='response'):
             if len(_t) == 3:
                 method, uri, sipversion = _t
         else:
-            log.warn('Could not parse the first header line: %s' % `_t`)
+            log.warn('Could not parse the first header line: %s' % repr(_t))
             return r
         r['headers'] = dict()
         for headerline in headerlines[1:]:
@@ -341,7 +341,7 @@ def parseHeader(buff, type='response'):
             if SEP in headerline:
                 tmpname, tmpval = headerline.split(SEP, 1)
                 name = tmpname.lower().strip()
-                val = map(lambda x: x.strip(), tmpval.split(','))
+                val = [x.strip() for x in tmpval.split(',')]
             else:
                 name, val = headerline.lower(), None
             r['headers'][name] = val
@@ -353,7 +353,7 @@ def fingerPrint(request, src=None, dst=None):
     # work needs to be done here
     import re
     server = dict()
-    if request.has_key('headers'):
+    if 'headers' in request:
         header = request['headers']
         if (src is not None) and (dst is not None):
             server['ip'] = src[0]
@@ -362,23 +362,23 @@ def fingerPrint(request, src=None, dst=None):
                 server['behindnat'] = False
             else:
                 server['behindnat'] = True
-        if header.has_key('user-agent'):
+        if 'user-agent' in header:
             server['name'] = header['user-agent']
             server['uatype'] = 'uac'
-        if header.has_key('server'):
+        if 'server' in header:
             server['name'] = header['server']
             server['uatype'] = 'uas'
-        if header.has_key('contact'):
+        if 'contact' in header:
             m = re.match('<sip:(.*?)>', header['contact'][0])
             if m:
                 server['contactip'] = m.group(1)
-        if header.has_key('supported'):
+        if 'supported' in header:
             server['supported'] = header['supported']
-        if header.has_key('accept-language'):
+        if 'accept-language' in header:
             server['accept-language'] = header['accept-language']
-        if header.has_key('allow-events'):
+        if 'allow-events' in header:
             server['allow-events'] = header['allow-events']
-        if header.has_key('allow'):
+        if 'allow' in header:
             server['allow'] = header['allow']
     return server
 
@@ -470,12 +470,12 @@ def challengeResponse(auth, method, uri):
                       ).hexdigest() + ":" + nonce + ":" + cnonce).hexdigest()
         result += ',algorithm=MD5-sess'
     else:
-        print("Unknown algorithm: %s" % auth["algorithm"])
+        print(("Unknown algorithm: %s" % auth["algorithm"]))
     if qop is None or qop == "auth":
         ha2 = md5('%s:%s' % (method, uri)).hexdigest()
         result += ',qop=auth'
     if qop == "auth-int":
-        print "auth-int is not supported"
+        print("auth-int is not supported")
     if qop == "auth":
         res = md5(ha1 + ":" + nonce + ":" + nonceCount + ":" +
                   cnonce + ":" + qop + ":" + ha2).hexdigest()
@@ -498,9 +498,9 @@ def makeRedirect(previousHeaders, rediraddr):
     headers['Call-ID'] = ' '.join(previousHeaders['headers']['call-id'])
     headers['CSeq'] = ' '.join(previousHeaders['headers']['cseq'])
     r = response
-    for h in superheaders.iteritems():
+    for h in superheaders.items():
         r += '%s: %s\r\n' % h
-    for h in headers.iteritems():
+    for h in headers.items():
         r += '%s: %s\r\n' % h
     r += '\r\n'
     return(r)
@@ -574,11 +574,11 @@ def makeRequest(
     r = '%s %s SIP/2.0\r\n' % (method, uri)
     if requesturi is not None:
         r = '%s %s SIP/2.0\r\n' % (method, requesturi)
-    for h in superheaders.iteritems():
+    for h in superheaders.items():
         r += '%s: %s\r\n' % h
-    for h in headers.iteritems():
+    for h in headers.items():
         r += '%s: %s\r\n' % h
-    for h in finalheaders.iteritems():
+    for h in finalheaders.items():
         r += '%s: %s\r\n' % h
     r += '\r\n'
     r += body
@@ -586,12 +586,13 @@ def makeRequest(
 
 
 def reportBugToAuthor(trace):
-    from urllib2 import urlopen, URLError
-    from urllib import urlencode
+    from urllib.request import urlopen
+    from urllib.error import URLError
+    from urllib.parse import urlencode
     import logging
     from sys import argv, version
     import os
-    from urllib import quote
+    from urllib.parse import quote
     log = logging.getLogger('reportBugToAuthor')
     data = str()
     data += "Command line parameters:\r\n"
@@ -599,9 +600,9 @@ def reportBugToAuthor(trace):
     data += '\r\n'
     data += 'version: %s' % __version__
     data += '\r\n'
-    data += 'email: <%s>' % raw_input("Your email address (optional): ")
+    data += 'email: <%s>' % input("Your email address (optional): ")
     data += '\r\n'
-    data += 'msg: %s' % raw_input("Extra details (optional): ")
+    data += 'msg: %s' % input("Extra details (optional): ")
     data += '\r\n'
     data += "python version: \r\n"
     data += "%s\r\n" % version
@@ -620,7 +621,7 @@ def reportBugToAuthor(trace):
         urlopen('https://comms.enablesecurity.com/hello.php',
                 urlencode({'message': data}))
         log.warn('Thanks for the bug report! I\'ll be working on it soon')
-    except URLError, err:
+    except URLError as err:
         log.error(err)
     log.warn('Make sure you are running the latest version of SIPVicious (svn version) \
                  by running "svn update" in the current directory')
@@ -638,12 +639,12 @@ def scanrandom(ipranges, portranges, methods, resume=None, randomstore='.sipvici
     # if the ipranges intersect then we go infinate .. we prevent that
     # example: 127.0.0.1 127.0.0.1/24
     import random
-    import anydbm
+    import dbm
     log = logging.getLogger('scanrandom')
     mode = 'n'
     if resume:
         mode = 'c'
-    database = anydbm.open(os.path.join(
+    database = dbm.open(os.path.join(
         os.path.expanduser('~'), randomstore), mode)
     dbsyncs = False
     try:
@@ -678,7 +679,7 @@ def scanrandom(ipranges, portranges, methods, resume=None, randomstore='.sipvici
             if ip not in database:
                 ipfound = True
         else:
-            if ip not in database.keys():
+            if ip not in list(database.keys()):
                 ipfound = True
         if ipfound:
             database[ip] = ''
@@ -727,12 +728,12 @@ def getranges(ipstring):
         r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}-\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',
         ipstring
     ):
-        naddr1, naddr2 = map(dottedQuadToNum, ipstring.split('-'))
+        naddr1, naddr2 = list(map(dottedQuadToNum, ipstring.split('-')))
     elif re.match(
         r'^(\d{1,3}(-\d{1,3})*)\.(\*|\d{1,3}(-\d{1,3})*)\.(\*|\d{1,3}(-\d{1,3})*)\.(\*|\d{1,3}(-\d{1,3})*)$',
         ipstring
     ):
-        naddr1, naddr2 = map(dottedQuadToNum, getranges2(ipstring))
+        naddr1, naddr2 = list(map(dottedQuadToNum, getranges2(ipstring)))
     elif re.match(
         r'^.*?\/\d{,2}$',
         ipstring
@@ -756,8 +757,8 @@ def getranges(ipstring):
 def getranges2(ipstring):
     _tmp = ipstring.split('.')
     if len(_tmp) != 4:
-        raise ValueError, "needs to be a Quad dotted ip"
-    _tmp2 = map(lambda x: x.split('-'), _tmp)
+        raise ValueError("needs to be a Quad dotted ip")
+    _tmp2 = [x.split('-') for x in _tmp]
     startip = list()
     endip = list()
     for dot in _tmp2:
@@ -796,9 +797,9 @@ def getmaskranges(ipstring):
 
 
 def scanfromdb(db, methods):
-    import anydbm
-    database = anydbm.open(db, 'r')
-    for k in database.keys():
+    import dbm
+    database = dbm.open(db, 'r')
+    for k in list(database.keys()):
         for method in methods:
             ip, port = k.split(':')
             port = int(port)
@@ -825,7 +826,7 @@ def resumeFromIP(ip, args):
 
 def resumeFrom(val, rangestr):
     val = int(val)
-    ranges = map(lambda x: map(int, x.split('-')), rangestr.split(','))
+    ranges = [list(map(int, x.split('-'))) for x in rangestr.split(',')]
     foundit = False
     tmp = list()
     for r in ranges:
@@ -836,7 +837,7 @@ def resumeFrom(val, rangestr):
                 foundit = True
         else:
             tmp.append((start, end))
-    return ','.join(map(lambda x: '-'.join(map(str, x)), tmp))
+    return ','.join(['-'.join(map(str, x)) for x in tmp])
 
 
 def packetcounter(n):
@@ -867,10 +868,10 @@ def findsession(chosensessiontype=None):
 
 def listsessions(chosensessiontype=None, count=False):
     import os.path
-    import anydbm
+    import dbm
     listresult = findsession(chosensessiontype)
-    for k in listresult.keys():
-        print "Type of scan: %s" % k
+    for k in list(listresult.keys()):
+        print("Type of scan: %s" % k)
         for r in listresult[k]:
             sessionstatus = 'Incomplete'
             sessionpath = os.path.join(
@@ -887,12 +888,12 @@ def listsessions(chosensessiontype=None, count=False):
                     logging.debug(
                         'The database could not be found: %s' % dbloc)
                 else:
-                    db = anydbm.open(dbloc, 'r')
+                    db = dbm.open(dbloc, 'r')
                     dblen = len(db)
             if os.path.exists(os.path.join(sessionpath, 'closed')):
                 sessionstatus = 'Complete'
-            print "\t- %s\t\t%s\t\t%s" % (r, sessionstatus, dblen)
-        print
+            print("\t- %s\t\t%s\t\t%s" % (r, sessionstatus, dblen))
+        print()
 
 
 def deletesessions(chosensession, chosensessiontype):
@@ -932,7 +933,7 @@ def createReverseLookup(src, dst):
     dstdb = dst
     if len(srcdb) > 100:
         log.warn("Performing dns lookup on %s hosts. To disable reverse ip resolution make use of the -n option" % len(srcdb))
-    for k in srcdb.keys():
+    for k in list(srcdb.keys()):
         tmp = k.split(':', 1)
         if len(tmp) == 2:
             ajpi, port = tmp
@@ -951,10 +952,10 @@ def createReverseLookup(src, dst):
 def getasciitable(labels, db, resdb=None, width=60):
     from libs.pptable import indent, wrap_onspace
     rows = list()
-    for k in db.keys():
+    for k in list(db.keys()):
         cols = [k, db[k]]
         if resdb is not None:
-            if resdb.has_key(k):
+            if k in resdb:
                 cols.append(resdb[k])
             else:
                 cols.append('[not available]')
@@ -975,14 +976,14 @@ def outputtoxml(title, labels, db, resdb=None, xsl='resources/sv.xsl'):
         o += '<label><name>%s</name></label>\r\n' % escape(label)
     o += '</labels>\r\n'
     o += '<results>\r\n'
-    for k in db.keys():
+    for k in list(db.keys()):
         o += '<result>\r\n'
         o += '<%s><value>%s</value></%s>\r\n' % (labels[0].replace(
             ' ', '').lower(), k, escape(labels[0]).replace(' ', '').lower())
         o += '<%s><value>%s</value></%s>\r\n' % (labels[1].replace(
             ' ', '').lower(), escape(db[k]), labels[1].replace(' ', '').lower())
         if resdb is not None:
-            if resdb.has_key(k):
+            if k in resdb:
                 o += '<%s><value>%s</value></%s>\r\n' % (labels[2].replace(
                     ' ', '').lower(), escape(resdb[k]), labels[2].replace(' ', '').lower())
             else:
@@ -1045,10 +1046,10 @@ def outputtopdf(outputfile, title, labels, db, resdb):
     styles = getSampleStyleSheet()
     rows = list()
     rows.append(labels)
-    for k in db.keys():
+    for k in list(db.keys()):
         cols = [k, db[k]]
         if resdb is not None:
-            if resdb.has_key(k):
+            if k in resdb:
                 cols.append(resdb[k])
             else:
                 cols.append('N/A')
@@ -1116,9 +1117,9 @@ class anotherxrange(object):
     def __getitem__(self, index):
         if isinstance(index, slice):
             start, stop, step = index.indices(self._len())
-            return xrange(self._index(start),
+            return range(self._index(start),
                           self._index(stop), step * self.step)
-        elif isinstance(index, (int, long)):
+        elif isinstance(index, int):
             if index < 0:
                 fixed_index = index + self._len()
             else:
@@ -1152,7 +1153,7 @@ def getTargetFromSRV(domainnames, methods):
             try:
                 log.debug('trying to resolve SRV for %s' % name)
                 ans = dns.resolver.query(name, 'SRV')
-            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer), err:
+            except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer) as err:
                 log.info('Could not resolve %s' % name)
                 continue
             for a in ans.response.answer:
@@ -1190,9 +1191,9 @@ def check_ipv6(n):
         return False
 
 if __name__ == '__main__':
-    print getranges('1.1.1.1/24')
+    print(getranges('1.1.1.1/24'))
     seq = getranges('google.com/24')
     if seq is not None:
         a = ip4range(seq)
         for x in iter(a):
-            print x
+            print(x)
