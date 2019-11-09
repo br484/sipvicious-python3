@@ -21,18 +21,18 @@ __GPL__ = """
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import logging
+import logging #not used
 import optparse
 import os.path
-import random
+import random #not used
 import re
-import select
+import select #not used
 import socket
 import sys
 import time
 import warnings
 
-from .libs.svhelper import __author__, __version__
+from libs.svhelper import __author__, __version__ #not used
 
 __prog__ = 'svcrash'
 warnings.filterwarnings("ignore")

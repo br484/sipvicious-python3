@@ -27,7 +27,7 @@ import socket
 import time
 import dbm
 
-from .libs.svhelper import __author__, __version__
+from libs.svhelper import __author__, __version__
 
 __prog__ = 'svwar'
 
@@ -40,7 +40,7 @@ class TakeASip:
                  enableack=False, maxlastrecvtime=15, domain=None, printdebug=False,
                  ipv6=False,
                  ):
-        from .libs.svhelper import dictionaryattack, numericbrute, packetcounter
+        from libs.svhelper import dictionaryattack, numericbrute, packetcounter
         import logging
         self.log = logging.getLogger('TakeASip')
         self.maxlastrecvtime = maxlastrecvtime
@@ -142,9 +142,9 @@ class TakeASip:
 
     def createRequest(self, m, username=None, auth=None, cid=None, cseq=1, fromaddr=None, toaddr=None, contact=None):
         from base64 import b64encode
-        from .libs.svhelper import makeRequest
-        from .libs.svhelper import createTag
-        from .libs.svhelper import check_ipv6
+        from libs.svhelper import makeRequest
+        from libs.svhelper import createTag
+        from libs.svhelper import check_ipv6
         if cid is None:
             cid = '%s' % str(random.getrandbits(32))
         branchunique = '%s' % random.getrandbits(32)
@@ -178,10 +178,10 @@ class TakeASip:
         return request
 
     def getResponse(self):
-        from .libs.svhelper import getNonce, getCredentials, getRealm, getCID, getTag
+        from libs.svhelper import getNonce, getCredentials, getRealm, getCID, getTag
         from base64 import b64decode
-        from .libs.svhelper import parseHeader
-        from .libs.svhelper import mysendto
+        from libs.svhelper import parseHeader
+        from libs.svhelper import mysendto
         import re
         # we got stuff to read off the socket
         from socket import error as socketerror
@@ -321,7 +321,7 @@ class TakeASip:
     def start(self):
         import socket
         import pickle
-        from .libs.svhelper import mysendto
+        from libs.svhelper import mysendto
         if self.bindingip == '':
             bindingip = 'any'
         else:
@@ -467,9 +467,9 @@ def main():
     from sys import exit
     import logging
     import pickle
-    from .libs.svhelper import resumeFrom, calcloglevel
-    from .libs.svhelper import standardoptions, standardscanneroptions
-    from .libs.svhelper import getRange
+    from libs.svhelper import resumeFrom, calcloglevel
+    from libs.svhelper import standardoptions, standardscanneroptions
+    from libs.svhelper import getRange
 
     usage = "usage: %prog [options] target\r\n"
     usage += "examples:\r\n"
@@ -637,7 +637,7 @@ def main():
         logging.warn('caught your control^c - quiting')
     except Exception as err:
         import traceback
-        from .libs.svhelper import reportBugToAuthor
+        from libs.svhelper import reportBugToAuthor
         if options.reportBack:
             logging.critical(
                 "Got unhandled exception : sending report to author")
@@ -668,7 +668,7 @@ def main():
         if lenres > 0:
             logging.info("we have %s extensions" % lenres)
             if (lenres < 400 and options.save is not None) or options.save is None:
-                from .libs.pptable import indent, wrap_onspace
+                from libs.pptable import indent, wrap_onspace
                 width = 60
                 labels = ('Extension', 'Authentication')
                 rows = list()

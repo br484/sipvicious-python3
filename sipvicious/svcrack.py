@@ -28,7 +28,7 @@ import select
 import socket
 import time
 import os
-from .libs.svhelper import __author__, __version__
+from libs.svhelper import __author__, __version__
 
 __prog__ = 'svcrack'
 
@@ -40,7 +40,7 @@ class ASipOfRedWine:
                  username=None, crackmode=1, crackargs=None, realm=None, sessionpath=None,
                  selecttime=0.005, compact=False, reusenonce=False, extension=None,
                  maxlastrecvtime=10, domain=None, requesturi=None, method='REGISTER', ipv6=False):
-        from .libs.svhelper import dictionaryattack, numericbrute, packetcounter
+        from libs.svhelper import dictionaryattack, numericbrute, packetcounter
         import logging
         self.log = logging.getLogger('ASipOfRedWine')
         family = socket.AF_INET
@@ -132,9 +132,9 @@ class ASipOfRedWine:
     TRYING = 'SIP/2.0 100 '
 
     def Register(self, extension, remotehost, auth=None, cid=None):
-        from .libs.svhelper import makeRequest
-        from .libs.svhelper import createTag
-        from .libs.svhelper import check_ipv6
+        from libs.svhelper import makeRequest
+        from libs.svhelper import createTag
+        from libs.svhelper import check_ipv6
 
         m = self.method
         if cid is None:
@@ -174,7 +174,7 @@ class ASipOfRedWine:
 
 
     def getResponse(self):
-        from .libs.svhelper import getNonce, getCredentials, getRealm, getCID, getAuthHeader, getQop, getAlgorithm, getOpaque
+        from libs.svhelper import getNonce, getCredentials, getRealm, getCID, getAuthHeader, getQop, getAlgorithm, getOpaque
         # we got stuff to read off the socket
         buff, srcaddr = self.sock.recvfrom(8192)
         if buff.startswith(self.PROXYAUTHREQ):
@@ -228,7 +228,7 @@ class ASipOfRedWine:
         # from libs.svhelper import ,getCredentials,getRealm,getCID
         import socket
         import pickle
-        from .libs.svhelper import mysendto
+        from libs.svhelper import mysendto
         if self.bindingip == '':
             bindingip = 'any'
         else:
@@ -357,12 +357,12 @@ class ASipOfRedWine:
 def main():
     from optparse import OptionParser
     from datetime import datetime
-    from .libs.svhelper import getRange, resumeFrom, calcloglevel
+    from libs.svhelper import getRange, resumeFrom, calcloglevel
     import os
     from sys import exit
     import logging
     import pickle
-    from .libs.svhelper import standardoptions, standardscanneroptions
+    from libs.svhelper import standardoptions, standardscanneroptions
 
     usage = "usage: %prog -u username [options] target\r\n"
     usage += "examples:\r\n"
@@ -538,7 +538,7 @@ def main():
         logging.warn('caught your control^c - quiting')
     except Exception as err:
         import traceback
-        from .libs.svhelper import reportBugToAuthor
+        from libs.svhelper import reportBugToAuthor
         if options.reportBack:
             logging.critical(
                 "Got unhandled exception : sending report to author")
@@ -570,7 +570,7 @@ def main():
         if lenres > 0:
             logging.info("we have %s cracked users" % lenres)
             if (lenres < 400 and options.save is not None) or options.save is None:
-                from .libs.pptable import indent, wrap_onspace
+                from libs.pptable import indent, wrap_onspace
                 width = 60
                 labels = ('Extension', 'Password')
                 rows = list()

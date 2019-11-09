@@ -28,7 +28,7 @@ from optparse import OptionParser
 from sys import exit
 from xml.dom.minidom import Document
 
-from .libs.svhelper import __author__, __version__
+from libs.svhelper import __author__, __version__
 
 __prog__ = 'svreport'
 
@@ -71,8 +71,8 @@ def main():
         parser.error("Please specify a command.\r\n")
         exit(1)
     command = args[0]
-    from .libs.svhelper import listsessions, deletesessions, createReverseLookup, dbexists
-    from .libs.svhelper import getsessionpath, getasciitable, outputtoxml, outputtopdf, calcloglevel
+    from libs.svhelper import listsessions, deletesessions, createReverseLookup, dbexists
+    from libs.svhelper import getsessionpath, getasciitable, outputtoxml, outputtopdf, calcloglevel
     validcommands = ['list', 'export', 'delete', 'stats', 'search']
     if command not in validcommands:
         parser.error('%s is not a supported command' % command)

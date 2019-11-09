@@ -33,7 +33,7 @@ from struct import pack, unpack
 from sys import exit
 
 from libs import pptable
-#from libs import svhelper
+
 from libs.svhelper import (__author__, __version__, calcloglevel, createTag,
                            dbexists, fingerPrintPacket, getRange, getranges,
                            getTag, getTargetFromSRV, ip4range, makeRequest,
