@@ -246,7 +246,7 @@ def getCID(pkt):
 
 def mysendto(sock, data, dst):
     while data:
-        bytes_sent = sock.sendto(data[:8192], dst)
+        bytes_sent = sock.sendto(data[:8192].encode(), dst)
         data = data[bytes_sent:]
 
 
@@ -302,10 +302,10 @@ def getAudioPortFromBuff(buff):
         return getAudioPort(sdp)
 
 
-def parseHeader(buff, type='response'):
+def parseHeader(buff, type=r'response'):
     import re
-    SEP = '\r\n\r\n'
-    HeadersSEP = '\r*\n(?![\t\x20])'
+    SEP = b'\r\n\r\n'
+    HeadersSEP = b'\r*\n(?![\t\x20])'
     import logging
     log = logging.getLogger('parseHeader')
     if SEP in buff:
@@ -317,29 +317,30 @@ def parseHeader(buff, type='response'):
 
     if len(headerlines) > 1:
         r = dict()
-        if type == 'response':
-            _t = headerlines[0].split(' ', 2)
+        if type == r'response':
+            _t = str(headerlines[0]).split(' ', 2)
             if len(_t) == 3:
                 sipversion, _code, description = _t
             else:
-                log.warn('Could not parse the first header line: %s' % repr(_t))
+                log.warning(b'Could not parse the first header line: %s' % repr(_t))
                 return r
             try:
                 r['code'] = int(_code)
             except ValueError:
                 return r
         elif type == 'request':
-            _t = headerlines[0].split(' ', 2)
+            _t = str(headerlines[0]).split(' ', 2)
             if len(_t) == 3:
                 method, uri, sipversion = _t
         else:
-            log.warn('Could not parse the first header line: %s' % repr(_t))
+            log.warning(b'Could not parse the first header line: %s' % repr(_t))
             return r
         r['headers'] = dict()
         for headerline in headerlines[1:]:
-            SEP = ':'
+            SEP = b':'
             if SEP in headerline:
                 tmpname, tmpval = headerline.split(SEP, 1)
+                tmpval = tmpval.decode()
                 name = tmpname.lower().strip()
                 val = [x.strip() for x in tmpval.split(',')]
             else:
@@ -424,7 +425,7 @@ def createTag(data):
     from binascii import b2a_hex
     from random import getrandbits
     rnd = getrandbits(32)
-    return b2a_hex(str(data) + '\x01' + str(rnd))
+    return b2a_hex(str(data).encode() + b'\x01' + str(rnd).encode())
 
 
 def getToTag(buff):
@@ -620,10 +621,10 @@ def reportBugToAuthor(trace):
     try:
         urlopen('https://comms.enablesecurity.com/hello.php',
                 urlencode({'message': data}))
-        log.warn('Thanks for the bug report! I\'ll be working on it soon')
+        log.warning('Thanks for the bug report! I\'ll be working on it soon')
     except URLError as err:
         log.error(err)
-    log.warn('Make sure you are running the latest version of SIPVicious (svn version) \
+    log.warning('Make sure you are running the latest version of SIPVicious (svn version) \
                  by running "svn update" in the current directory')
 
 
@@ -932,7 +933,7 @@ def createReverseLookup(src, dst):
     srcdb = src
     dstdb = dst
     if len(srcdb) > 100:
-        log.warn("Performing dns lookup on %s hosts. To disable reverse ip resolution make use of the -n option" % len(srcdb))
+        log.warning("Performing dns lookup on %s hosts. To disable reverse ip resolution make use of the -n option" % len(srcdb))
     for k in list(srcdb.keys()):
         tmp = k.split(':', 1)
         if len(tmp) == 2:
@@ -1164,7 +1165,7 @@ def getTargetFromSRV(domainnames, methods):
                             hostname = socket.gethostbyname(
                                 _tmp.target.to_text())
                         except socket.error:
-                            log.warn("%s could not be resolved" %
+                            log.warning("%s could not be resolved" %
                                      _tmp.target.to_text())
                             continue
                         log.debug("%s resolved to %s" %

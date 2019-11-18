@@ -117,10 +117,10 @@ class DrinkOrSip:
 
     def getResponse(self,buff,srcaddr):        
         srcip,srcport = srcaddr
-        uaname = 'unknown'
-        if buff.startswith('OPTIONS ') \
-            or buff.startswith('INVITE ') \
-            or buff.startswith('REGISTER '):
+        uaname = b'unknown'
+        if buff.startswith(b'OPTIONS ') \
+            or buff.startswith(b'INVITE ') \
+            or buff.startswith(b'REGISTER '):
             if self.externalip == srcip:
                 self.log.debug("We received our own packet from %s:%s" % srcaddr)
             else:
@@ -533,9 +533,9 @@ def main():
                 print(indent([labels]+rows,hasHeader=True,
                     prefix='| ', postfix=' |',wrapfunc=lambda x: wrap_onspace(x,width)))
             else:
-                logging.warn("too many to print - use svreport for this")
+                logging.warning("too many to print - use svreport for this")
         else:
-            logging.warn("found nothing")
+            logging.warning("found nothing")
     end_time = datetime.now()
     total_time = end_time - start_time
     logging.info("Total time: %s" %  total_time)
