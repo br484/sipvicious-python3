@@ -1,8 +1,8 @@
-#!/usr/bin/env python
-
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 #   Helper.py keeps the rest of the tools clean - part of SIPVicious tools
-#   Copyright (C) 2007-2012  Sandro Gauci <sandro@enablesecurity.com>
+#   Copyright (C) 2007-2020  Sandro Gauci <sandro@enablesecurity.com>
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -19,20 +19,33 @@
 
 
 __author__ = "Sandro Gauci <sandro@enablesecurity.com>"
-__version__ = '0.2.8'
+__version__ = '0.3.1'
 
 
+import re
+import sys
+import uuid
 import base64
+import os
+import dbm
+import socket
+import random
+import struct
+import shutil
 import logging
 import optparse
-import os.path
-import socket
-import struct
-import sys
+from urllib.parse import quote
+from random import getrandbits
+from urllib.request import urlopen
+from urllib.error import URLError
+from urllib.parse import urlencode
+from binascii import b2a_hex, a2b_hex
+from binascii import Error as b2aerr
+from .pptable import to_string
 
-if sys.hexversion < 0x020400f0:
+if sys.hexversion < 0x03060000:
     sys.stderr.write(
-        "Please update to python 2.4 or greater to run Sipvicious\r\n")
+        "Please update to python 3.6 or greater to run SIPVicious\r\n")
     sys.exit(1)
 
 
@@ -40,8 +53,7 @@ def standardoptions(parser):
     parser.add_option('-v', '--verbose', dest="verbose", action="count",
                       help="Increase verbosity")
     parser.add_option('-q', '--quiet', dest="quiet", action="store_true",
-                      default=False,
-                      help="Quiet mode")
+                      default=False, help="Quiet mode")
     parser.add_option("-p", "--port", dest="port", default="5060",
                       help="Destination port or port ranges of the SIP device - eg -p5060,5061,8000-8100", metavar="PORT")
     parser.add_option("-P", "--localport", dest="localport", default=5060, type="int",
@@ -50,8 +62,7 @@ def standardoptions(parser):
                       help="IP Address to use as the external ip. Specify this if you have multiple interfaces or if you are behind NAT", metavar="IP")
     parser.add_option("-b", "--bindingip", dest="bindingip", default='0.0.0.0',
                       help="By default we bind to all interfaces. This option overrides that and binds to the specified ip address")
-    parser.add_option("-t", "--timeout", dest="selecttime", type="float",
-                      default=0.005,
+    parser.add_option("-t", "--timeout", dest="selecttime", type="float", default=0.005,
                       help="This option allows you to trottle the speed at which packets are sent. Change this if you're losing packets. For example try 0.5.",
                       metavar="SELECTTIME")
     parser.add_option("-R", "--reportback", dest="reportBack", default=False, action="store_true",
@@ -63,14 +74,11 @@ def standardoptions(parser):
 
 
 def standardscanneroptions(parser):
-    parser.add_option("-s", "--save", dest="save",
-                      help="save the session. Has the benefit of allowing you to resume a previous scan and allows you to export scans", metavar="NAME")
-    parser.add_option("--resume", dest="resume",
-                      help="resume a previous scan", metavar="NAME")
-    parser.add_option("-c", "--enablecompact", dest="enablecompact", default=False,
-                      help="enable compact mode. Makes packets smaller but possibly less compatible",
-                      action="store_true",
-                      )
+    parser.add_option("-s", "--save", dest="save",  metavar="NAME",
+                      help="save the session. Has the benefit of allowing you to resume a previous scan and allows you to export scans")
+    parser.add_option("--resume", dest="resume", help="resume a previous scan", metavar="NAME")
+    parser.add_option("-c", "--enablecompact", dest="enablecompact", default=False, action="store_true",
+                      help="enable compact mode. Makes packets smaller but possibly less compatible")
     return parser
 
 
@@ -87,7 +95,6 @@ def calcloglevel(options):
 
 
 def bindto(bindingip, startport, s):
-    import logging
     log = logging.getLogger('bindto')
     localport = startport
     log.debug("binding to %s:%s" % (bindingip, localport))
@@ -151,11 +158,11 @@ def numericbrute(rangelist, zeropadding=0, template=None, defaults=False, static
         for i in range(10001, 99999, 100):
             yield('%04i' % i)
 
-        for i in [1234, 2345, 3456, 4567, 5678, 6789, 7890, 0o123]:
-            yield('%s' % i)
+        for i in ['1234', '2345', '3456', '4567', '5678', '6789', '7890', '0123']:
+            yield(i)
 
-        for i in [12345, 23456, 34567, 45678, 56789, 67890, 0o1234]:
-            yield('%s' % i)
+        for i in ['12345', '23456', '34567', '45678', '56789', '67890', '01234']:
+            yield(i)
 
     if zeropadding > 0:
         format = '%%0%su' % zeropadding
@@ -185,7 +192,6 @@ class genericbrute:
 
 
 def getNonce(pkt):
-    import re
     nonceRE = 'nonce="(.+?)"'
     _tmp = re.findall(nonceRE, pkt)
     if _tmp is not None:
@@ -195,7 +201,6 @@ def getNonce(pkt):
 
 
 def getOpaque(pkt):
-    import re
     nonceRE = 'opaque="(.+?)"'
     _tmp = re.findall(nonceRE, pkt)
     if _tmp is not None:
@@ -205,7 +210,6 @@ def getOpaque(pkt):
 
 
 def getAlgorithm(pkt):
-    import re
     nonceRE = 'algorithm=(.+?)[,\r]'
     _tmp = re.findall(nonceRE, pkt)
     if _tmp is not None:
@@ -215,7 +219,6 @@ def getAlgorithm(pkt):
 
 
 def getQop(pkt):
-    import re
     nonceRE = 'qop="(.+?)"'
     _tmp = re.findall(nonceRE, pkt)
     if _tmp is not None:
@@ -225,7 +228,6 @@ def getQop(pkt):
 
 
 def getRealm(pkt):
-    import re
     nonceRE = 'realm="(.+?)"'
     _tmp = re.findall(nonceRE, pkt)
     if _tmp is not None:
@@ -235,7 +237,6 @@ def getRealm(pkt):
 
 
 def getCID(pkt):
-    import re
     cidRE = 'Call-ID: ([:a-zA-Z0-9]+)'
     _tmp = re.findall(cidRE, pkt, re.I)
     if _tmp is not None:
@@ -246,7 +247,8 @@ def getCID(pkt):
 
 def mysendto(sock, data, dst):
     while data:
-        bytes_sent = sock.sendto(data[:8192].encode(), dst)
+        # SIP RFC states the default serialized encoding is utf-8
+        bytes_sent = sock.sendto(bytes(data[:8192], 'utf-8'), dst)
         data = data[bytes_sent:]
 
 
@@ -302,11 +304,9 @@ def getAudioPortFromBuff(buff):
         return getAudioPort(sdp)
 
 
-def parseHeader(buff, type=r'response'):
-    import re
-    SEP = b'\r\n\r\n'
-    HeadersSEP = b'\r*\n(?![\t\x20])'
-    import logging
+def parseHeader(buff, type='response'):
+    SEP = '\r\n\r\n'
+    HeadersSEP = '\r*\n(?![\t\x20])'
     log = logging.getLogger('parseHeader')
     if SEP in buff:
         header, body = buff.split(SEP, 1)
@@ -317,32 +317,31 @@ def parseHeader(buff, type=r'response'):
 
     if len(headerlines) > 1:
         r = dict()
-        if type == r'response':
-            _t = str(headerlines[0]).split(' ', 2)
+        if type == 'response':
+            _t = headerlines[0].split(' ', 2)
             if len(_t) == 3:
-                sipversion, _code, description = _t
+                _, _code, _ = _t
             else:
-                log.warning(b'Could not parse the first header line: %s' % repr(_t))
+                log.warn('Could not parse the first header line: %s' % _t.__repr__())
                 return r
             try:
                 r['code'] = int(_code)
             except ValueError:
                 return r
         elif type == 'request':
-            _t = str(headerlines[0]).split(' ', 2)
-            if len(_t) == 3:
-                method, uri, sipversion = _t
+            _t = headerlines[0].split(' ', 2)
+            #if len(_t) == 3:
+            #    method, uri, sipversion = _t
         else:
-            log.warning(b'Could not parse the first header line: %s' % repr(_t))
+            log.warn('Could not parse the first header line: %s' % _t.__repr__())
             return r
         r['headers'] = dict()
         for headerline in headerlines[1:]:
-            SEP = b':'
+            SEP = ':'
             if SEP in headerline:
                 tmpname, tmpval = headerline.split(SEP, 1)
-                tmpval = tmpval.decode()
                 name = tmpname.lower().strip()
-                val = [x.strip() for x in tmpval.split(',')]
+                val = list(map(lambda x: x.strip(), tmpval.split(',')))
             else:
                 name, val = headerline.lower(), None
             r['headers'][name] = val
@@ -352,7 +351,6 @@ def parseHeader(buff, type=r'response'):
 
 def fingerPrint(request, src=None, dst=None):
     # work needs to be done here
-    import re
     server = dict()
     if 'headers' in request:
         header = request['headers']
@@ -394,26 +392,24 @@ def getCredentials(buff):
     data = getTag(buff)
     if data is None:
         return
-    userpass = data.split(':')
+    userpass = data.split(b':')
     if len(userpass) > 0:
         return(userpass)
 
 
 def getTag(buff):
-    import re
-    from binascii import a2b_hex
     tagRE = r'(From|f): .*?\;\s*tag=([=+/\.:a-zA-Z0-9_]+)'
     _tmp = re.findall(tagRE, buff)
     if _tmp is not None:
         if len(_tmp) > 0:
             _tmp2 = _tmp[0][1]
             try:
-                _tmp2 = a2b_hex(_tmp2)
-            except TypeError:
+                _tmp2 = a2b_hex(_tmp2.strip())
+            except (TypeError, b2aerr):
                 return
-            if _tmp2.find('\x01') > 0:
+            if _tmp2.find(b'\x01') > 0:
                 try:
-                    c, rand = _tmp2.split('\x01')
+                    c, _ = _tmp2.split(b'\x01')
                 except ValueError:
                     c = 'svcrash detected'
             else:
@@ -422,14 +418,11 @@ def getTag(buff):
 
 
 def createTag(data):
-    from binascii import b2a_hex
-    from random import getrandbits
     rnd = getrandbits(32)
-    return b2a_hex(str(data).encode() + b'\x01' + str(rnd).encode())
+    return b2a_hex(str(data).encode('utf-8') + b'\x01' + str(rnd).encode('utf-8'))
 
 
 def getToTag(buff):
-    import re
     tagRE = r'(To|t): .*?\;\s*tag=([=+/\.:a-zA-Z0-9_]+)'
     _tmp = re.findall(tagRE, buff)
     if _tmp is not None:
@@ -440,13 +433,11 @@ def getToTag(buff):
 
 
 def challengeResponse(auth, method, uri):
-    hashlibsupported = True
     try:
         from hashlib import md5
     except ImportError:
         import md5 as md5sum
         md5 = md5sum.new
-    import uuid
     username = auth["username"]
     realm = auth["realm"]
     passwd = auth["password"]
@@ -460,28 +451,28 @@ def challengeResponse(auth, method, uri):
     result = 'Digest username="%s",realm="%s",nonce="%s",uri="%s"' % (
         username, realm, nonce, uri)
     if algorithm == "md5-sess" or qop == "auth":
-        cnonce = uuid.uuid4().get_hex()
+        cnonce = uuid.uuid4().hex
         nonceCount = "%08d" % auth["noncecount"]
         result += ',cnonce="%s",nc=%s' % (cnonce, nonceCount)
     if algorithm is None or algorithm == "md5":
-        ha1 = md5('%s:%s:%s' % (username, realm, passwd)).hexdigest()
+        ha1 = md5(('%s:%s:%s' % (username, realm, passwd)).encode('utf-8')).hexdigest()
         result += ',algorithm=MD5'
     elif auth["algorithm"] == "md5-sess":
-        ha1 = md5(md5('%s:%s:%s' % (username, realm, passwd)
-                      ).hexdigest() + ":" + nonce + ":" + cnonce).hexdigest()
+        ha1 = md5((md5(('%s:%s:%s' % (username, realm, passwd)).encode('utf-8')
+                      ).hexdigest() + ":" + nonce + ":" + cnonce).encode('utf-8')).hexdigest()
         result += ',algorithm=MD5-sess'
     else:
-        print(("Unknown algorithm: %s" % auth["algorithm"]))
+        print("Unknown algorithm: %s" % auth["algorithm"])
     if qop is None or qop == "auth":
-        ha2 = md5('%s:%s' % (method, uri)).hexdigest()
+        ha2 = md5(('%s:%s' % (method, uri)).encode('utf-8')).hexdigest()
         result += ',qop=auth'
     if qop == "auth-int":
         print("auth-int is not supported")
     if qop == "auth":
-        res = md5(ha1 + ":" + nonce + ":" + nonceCount + ":" +
-                  cnonce + ":" + qop + ":" + ha2).hexdigest()
+        res = md5((ha1 + ":" + nonce + ":" + nonceCount + ":" +
+                  cnonce + ":" + qop + ":" + ha2).encode('utf-8')).hexdigest()
     else:
-        res = md5('%s:%s:%s' % (ha1, nonce, ha2)).hexdigest()
+        res = md5(('%s:%s:%s' % (ha1, nonce, ha2)).encode('utf-8')).hexdigest()
     result += ',response="%s"' % res
     if opaque is not None and opaque != "":
         result += ',opaque="%s"' % opaque
@@ -507,11 +498,9 @@ def makeRedirect(previousHeaders, rediraddr):
     return(r)
 
 
-def makeRequest(
-    method, fromaddr, toaddr, dsthost, port, callid, srchost='',
-    branchunique=None, cseq=1, auth=None, localtag=None, compact=False, contact='sip:123@1.1.1.1', accept='application/sdp', contentlength=None,
-    localport=5060, extension=None, contenttype=None, body='',
-        useragent='friendly-scanner', requesturi=None):
+def makeRequest(method, fromaddr, toaddr, dsthost, port, callid, srchost='', branchunique=None, cseq=1,
+    auth=None, localtag=None, compact=False, contact='sip:123@1.1.1.1', accept='application/sdp', contentlength=None,
+    localport=5060, extension=None, contenttype=None, body='', useragent='friendly-scanner', requesturi=None):
     """makeRequest builds up a SIP request
     method - OPTIONS / INVITE etc
     toaddr = to address
@@ -520,7 +509,6 @@ def makeRequest(
     callid = callerid
     srchost = source host
     """
-    import random
     if extension is None or method == 'REGISTER':
         uri = 'sip:%s' % dsthost
     else:
@@ -538,7 +526,7 @@ def makeRequest(
         headers['t'] = toaddr
         headers['f'] = fromaddr
         if localtag is not None:
-            headers['f'] += ';tag=%s' % localtag
+            headers['f'] += ';tag=%s' % localtag.decode('utf-8')
         headers['i'] = callid
         # if contact is not None:
         headers['m'] = contact
@@ -550,7 +538,7 @@ def makeRequest(
         headers['From'] = fromaddr
         headers['User-Agent'] = useragent
         if localtag is not None:
-            headers['From'] += ';tag=%s' % localtag
+            headers['From'] += ';tag=%s' % localtag.decode('utf-8')
         headers['Call-ID'] = callid
         # if contact is not None:
         headers['Contact'] = contact
@@ -587,17 +575,10 @@ def makeRequest(
 
 
 def reportBugToAuthor(trace):
-    from urllib.request import urlopen
-    from urllib.error import URLError
-    from urllib.parse import urlencode
-    import logging
-    from sys import argv, version
-    import os
-    from urllib.parse import quote
     log = logging.getLogger('reportBugToAuthor')
     data = str()
     data += "Command line parameters:\r\n"
-    data += str(argv)
+    data += str(sys.argv)
     data += '\r\n'
     data += 'version: %s' % __version__
     data += '\r\n'
@@ -606,10 +587,7 @@ def reportBugToAuthor(trace):
     data += 'msg: %s' % input("Extra details (optional): ")
     data += '\r\n'
     data += "python version: \r\n"
-    data += "%s\r\n" % version
-    # data += """2.5 (r25:51918, Sep 19 2006, 08:49:13)
-    #data += "[GCC ]"
-    #data += "A"*900
+    data += "%s\r\n" % sys.version
     data += "osname: %s" % os.name
     data += '\r\n'
     if os.name == 'posix':
@@ -620,12 +598,12 @@ def reportBugToAuthor(trace):
     data += str(trace)
     try:
         urlopen('https://comms.enablesecurity.com/hello.php',
-                urlencode({'message': data}))
-        log.warning('Thanks for the bug report! I\'ll be working on it soon')
+                urlencode({'message': data}).encode('utf-8'))
+        log.warn('Thanks for the bug report! We will be working on it soon')
     except URLError as err:
         log.error(err)
-    log.warning('Make sure you are running the latest version of SIPVicious (svn version) \
-                 by running "svn update" in the current directory')
+    log.warn('Make sure you are running the latest version of SIPVicious \
+                 by running "git pull" in the current directory')
 
 
 def scanlist(iprange, portranges, methods):
@@ -639,8 +617,6 @@ def scanlist(iprange, portranges, methods):
 def scanrandom(ipranges, portranges, methods, resume=None, randomstore='.sipvicious_random'):
     # if the ipranges intersect then we go infinate .. we prevent that
     # example: 127.0.0.1 127.0.0.1/24
-    import random
-    import dbm
     log = logging.getLogger('scanrandom')
     mode = 'n'
     if resume:
@@ -680,7 +656,7 @@ def scanrandom(ipranges, portranges, methods, resume=None, randomstore='.sipvici
             if ip not in database:
                 ipfound = True
         else:
-            if ip not in list(database.keys()):
+            if ip not in database.keys():
                 ipfound = True
         if ipfound:
             database[ip] = ''
@@ -695,7 +671,7 @@ def scanrandom(ipranges, portranges, methods, resume=None, randomstore='.sipvici
 
 def scanfromfile(csv, methods):
     for row in csv:
-        (dstip, dstport, srcip, srcport, uaname) = row
+        (dstip, dstport, _, _, _) = row
         for method in methods:
             yield(dstip, int(dstport), method)
 
@@ -723,7 +699,6 @@ def ip4range(*args):
 
 
 def getranges(ipstring):
-    import re
     log = logging.getLogger('getranges')
     if re.match(
         r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}-\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$',
@@ -745,9 +720,8 @@ def getranges(ipstring):
         naddr1, naddr2 = r
     else:
         # we attempt to resolve the host
-        from socket import gethostbyname
         try:
-            naddr1 = dottedQuadToNum(gethostbyname(ipstring))
+            naddr1 = dottedQuadToNum(socket.gethostbyname(ipstring))
             naddr2 = naddr1
         except socket.error:
             log.info('Could not resolve %s' % ipstring)
@@ -759,7 +733,7 @@ def getranges2(ipstring):
     _tmp = ipstring.split('.')
     if len(_tmp) != 4:
         raise ValueError("needs to be a Quad dotted ip")
-    _tmp2 = [x.split('-') for x in _tmp]
+    _tmp2 = list(map(lambda x: x.split('-'), _tmp))
     startip = list()
     endip = list()
     for dot in _tmp2:
@@ -778,29 +752,26 @@ def getranges2(ipstring):
 
 
 def getmaskranges(ipstring):
-    import re
     log = logging.getLogger('getmaskranges')
     addr, mask = ipstring.rsplit('/', 1)
     if not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', addr):
-        from socket import gethostbyname
         try:
             log.debug('Could not resolve %s' % addr)
-            addr = gethostbyname(addr)
+            addr = socket.gethostbyname(addr)
         except socket.error:
             return
-
+    assert(mask.isdigit()), "invalid IP mask (1)"
     naddr = dottedQuadToNum(addr)
     masklen = int(mask)
-    assert(0 <= masklen <= 32), "invalid IP mask"
+    assert(0 <= masklen <= 32), "invalid IP mask (2)"
     naddr1 = naddr & (((1 << masklen) - 1) << (32 - masklen))
     naddr2 = naddr1 + (1 << (32 - masklen)) - 1
     return (naddr1, naddr2)
 
 
 def scanfromdb(db, methods):
-    import dbm
     database = dbm.open(db, 'r')
-    for k in list(database.keys()):
+    for k in database.keys():
         for method in methods:
             ip, port = k.split(':')
             port = int(port)
@@ -827,7 +798,7 @@ def resumeFromIP(ip, args):
 
 def resumeFrom(val, rangestr):
     val = int(val)
-    ranges = [list(map(int, x.split('-'))) for x in rangestr.split(',')]
+    ranges = list(map(lambda x: map(int, x.split('-')), rangestr.split(',')))
     foundit = False
     tmp = list()
     for r in ranges:
@@ -838,7 +809,7 @@ def resumeFrom(val, rangestr):
                 foundit = True
         else:
             tmp.append((start, end))
-    return ','.join(['-'.join(map(str, x)) for x in tmp])
+    return ','.join(map(lambda x: '-'.join(map(str, x)), tmp))
 
 
 def packetcounter(n):
@@ -856,7 +827,6 @@ sessiontypes = ['svmap', 'svwar', 'svcrack']
 
 
 def findsession(chosensessiontype=None):
-    import os
     listresult = dict()
     for sessiontype in sessiontypes:
         if chosensessiontype in [None, sessiontype]:
@@ -868,10 +838,8 @@ def findsession(chosensessiontype=None):
 
 
 def listsessions(chosensessiontype=None, count=False):
-    import os.path
-    import dbm
     listresult = findsession(chosensessiontype)
-    for k in list(listresult.keys()):
+    for k in listresult.keys():
         print("Type of scan: %s" % k)
         for r in listresult[k]:
             sessionstatus = 'Incomplete'
@@ -893,14 +861,10 @@ def listsessions(chosensessiontype=None, count=False):
                     dblen = len(db)
             if os.path.exists(os.path.join(sessionpath, 'closed')):
                 sessionstatus = 'Complete'
-            print("\t- %s\t\t%s\t\t%s" % (r, sessionstatus, dblen))
-        print()
+            print("\t- %s\t\t%s\t\t%s\n" % (r, sessionstatus, dblen))
 
 
 def deletesessions(chosensession, chosensessiontype):
-    import shutil
-    import os
-    import logging
     log = logging.getLogger('deletesessions')
     sessionpath = list()
     if chosensessiontype is None:
@@ -926,20 +890,19 @@ def deletesessions(chosensession, chosensessiontype):
 
 
 def createReverseLookup(src, dst):
-    import logging
     log = logging.getLogger('createReverseLookup')
     #srcdb = anydbm.open(src,'r')
     #dstdb = anydbm.open(dst,'n')
     srcdb = src
     dstdb = dst
     if len(srcdb) > 100:
-        log.warning("Performing dns lookup on %s hosts. To disable reverse ip resolution make use of the -n option" % len(srcdb))
-    for k in list(srcdb.keys()):
-        tmp = k.split(':', 1)
+        log.warn("Performing dns lookup on %s hosts. To disable reverse ip resolution make use of the -n option" % len(srcdb))
+    for k in srcdb.keys():
+        tmp = k.split(b':', 1)
         if len(tmp) == 2:
             ajpi, port = tmp
             try:
-                tmpk = ':'.join([socket.gethostbyaddr(ajpi)[0], port])
+                tmpk = ':'.join([socket.gethostbyaddr(ajpi.decode())[0], port.decode()])
                 logging.debug('Resolved %s to %s' % (k, tmpk))
                 dstdb[k] = tmpk
             except socket.error:
@@ -951,18 +914,16 @@ def createReverseLookup(src, dst):
 
 
 def getasciitable(labels, db, resdb=None, width=60):
-    from libs.pptable import indent, wrap_onspace
     rows = list()
-    for k in list(db.keys()):
-        cols = [k, db[k]]
+    for k in db.keys():
+        cols = [k.decode(), db[k].decode()]
         if resdb is not None:
             if k in resdb:
-                cols.append(resdb[k])
+                cols.append(resdb[k].decode())
             else:
                 cols.append('[not available]')
         rows.append(cols)
-    o = indent([labels] + rows, hasHeader=True,
-               prefix='| ', postfix=' |', wrapfunc=lambda x: wrap_onspace(x, width))
+    o = to_string(rows, header=labels)
     return o
 
 
@@ -977,7 +938,7 @@ def outputtoxml(title, labels, db, resdb=None, xsl='resources/sv.xsl'):
         o += '<label><name>%s</name></label>\r\n' % escape(label)
     o += '</labels>\r\n'
     o += '<results>\r\n'
-    for k in list(db.keys()):
+    for k in db.keys():
         o += '<result>\r\n'
         o += '<%s><value>%s</value></%s>\r\n' % (labels[0].replace(
             ' ', '').lower(), k, escape(labels[0]).replace(' ', '').lower())
@@ -997,8 +958,6 @@ def outputtoxml(title, labels, db, resdb=None, xsl='resources/sv.xsl'):
 
 
 def getsessionpath(session, sessiontype):
-    import os
-    import logging
     log = logging.getLogger('getsessionpath')
     sessiontypes = ['svmap', 'svwar', 'svcrack']
     sessionpath = None
@@ -1032,7 +991,6 @@ def dbexists(name):
 
 
 def outputtopdf(outputfile, title, labels, db, resdb):
-    import logging
     log = logging.getLogger('outputtopdf')
     try:
         from reportlab.platypus import TableStyle, Table, SimpleDocTemplate, Paragraph
@@ -1047,7 +1005,7 @@ def outputtopdf(outputfile, title, labels, db, resdb):
     styles = getSampleStyleSheet()
     rows = list()
     rows.append(labels)
-    for k in list(db.keys()):
+    for k in db.keys():
         cols = [k, db[k]]
         if resdb is not None:
             if k in resdb:
@@ -1101,9 +1059,10 @@ class anotherxrange(object):
     def __hash__(self):
         return hash(self._slice)
 
-    def __cmp__(self, other):
-        return (cmp(type(self), type(other)) or
-                cmp(self._slice, other._slice))
+    # Commented out this due to being redundant
+    #def __cmp__(self, other):
+    #    return (cmp(type(self), type(other)) or
+    #            cmp(self._slice, other._slice))
 
     def __repr__(self):
         return '%s(%r, %r, %r)' % (self.__class__.__name__,
@@ -1138,8 +1097,6 @@ class anotherxrange(object):
 
 
 def getTargetFromSRV(domainnames, methods):
-    import logging
-    import socket
     log = logging.getLogger('getTargetFromSRV')
     try:
         import dns
@@ -1155,6 +1112,7 @@ def getTargetFromSRV(domainnames, methods):
                 log.debug('trying to resolve SRV for %s' % name)
                 ans = dns.resolver.query(name, 'SRV')
             except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer) as err:
+                log.debug('Encountered error: %s' % err.__str__())
                 log.info('Could not resolve %s' % name)
                 continue
             for a in ans.response.answer:
@@ -1165,7 +1123,7 @@ def getTargetFromSRV(domainnames, methods):
                             hostname = socket.gethostbyname(
                                 _tmp.target.to_text())
                         except socket.error:
-                            log.warning("%s could not be resolved" %
+                            log.warn("%s could not be resolved" %
                                      _tmp.target.to_text())
                             continue
                         log.debug("%s resolved to %s" %
@@ -1174,7 +1132,6 @@ def getTargetFromSRV(domainnames, methods):
 
 
 def getAuthHeader(pkt):
-    import re
     nonceRE = '\r\n(www-authenticate|proxy-authenticate): (.+?)\r\n'
     _tmp = re.findall(nonceRE, pkt, re.I)
     if _tmp is not None:
@@ -1183,13 +1140,13 @@ def getAuthHeader(pkt):
     return None
 
 
-
 def check_ipv6(n):
     try:
         socket.inet_pton(socket.AF_INET6, n)
         return True
     except socket.error:
         return False
+
 
 if __name__ == '__main__':
     print(getranges('1.1.1.1/24'))

